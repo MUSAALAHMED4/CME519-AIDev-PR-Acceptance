@@ -48,20 +48,55 @@ Makalenin geri kalanı şöyledir: Bölüm~II ilgili çalışmaları, Bölüm~II
 
 \section{Veri ve Keşifsel Veri Analizi}
 \subsection{Veri Toplama ve Birleştirme}
-AIDev, Hugging Face üzerinde yayımlanmaktadır (\texttt{hao-li/AIDev}). Çalışmada 100'den fazla GitHub yıldızına sahip depoları içeren seçilmiş alt küme ve beş tablo kullanılmıştır: \texttt{pull\_request} (361.296 PR), \texttt{repository} (25.402 depo), \texttt{all\_user} (yazar profilleri), \texttt{pr\_commits} ve \texttt{pr\_commit\_details} (12.116.310 dosya düzeyinde değişiklik kaydı). 12~GB büyüklüğündeki dosya düzeyindeki tablo, birer milyon satırlık parçalar hâlinde okunmuş ve her PR için tek satıra toplanmıştır. Sonucu bilinen yalnızca kapatılmış PR'lar olduğundan 332.406 PR kalmıştır; hedef değişken PR'ın birleştirme zaman damgası varsa \textit{merged}=1, yoksa 0'dır. Veri ham hâldedir: eksik değerler (19 sütun, en fazla \%27,3 eksik), uzun kuyruklu dağılımlar ve sınıf dengesizliği (\%74,2 birleştirilmiş, \%25,8 reddedilmiş) içermektedir.
+AIDev, Hugging Face üzerinde yayımlanmaktadır (\texttt{hao-li/AIDev}). Çalışmada 100'den fazla GitHub yıldızına sahip depoları içeren seçilmiş alt küme ve Tablo~\ref{tab:data}'deki beş tablo kullanılmıştır: \texttt{pull\_request} (361.296 PR), \texttt{repository} (25.402 depo), \texttt{all\_user} (yazar profilleri), \texttt{pr\_commits} ve \texttt{pr\_commit\_details} (12.116.310 dosya düzeyinde değişiklik kaydı). 12~GB büyüklüğündeki dosya düzeyindeki tablo, birer milyon satırlık parçalar hâlinde okunmuş ve her PR için tek satıra toplanmıştır. Sonucu bilinen yalnızca kapatılmış PR'lar olduğundan 332.406 PR kalmıştır; hedef değişken PR'ın birleştirme zaman damgası varsa \textit{merged}=1, yoksa 0'dır. Veri ham hâldedir: eksik değerler (19 sütun, en fazla \%27,3 eksik), uzun kuyruklu dağılımlar ve sınıf dengesizliği (\%74,2 birleştirilmiş, \%25,8 reddedilmiş) içermektedir.
 
 PR açıldıktan sonraki olayları tanımlayan tablolar (incelemeler, yorumlar, zaman çizelgesi) sonucu açığa vuracağı için bilinçli olarak özellik olarak kullanılmamıştır. Şekil~\ref{fig:leak} bunu göstermektedir: kapanma süresi birleştirilen ve reddedilen PR'lar arasında belirgin biçimde farklıdır ve sızıntılı bir özellik olurdu.
 
+\begin{table}[!t]\centering
+\caption{Kullanılan AIDev tabloları.}\label{tab:data}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lp{3.2cm}r}\toprule
+Tablo & İçerik & Satır \\\midrule
+\texttt{pull\_request} & hedef, ajan, başlık, açıklama, zaman & 361.296 \\
+\texttt{repository} & dil, lisans, yıldız, fork & 25.402 \\
+\texttt{all\_user} & takipçi, takip, hesap tarihi & 399.962 \\
+\texttt{pr\_commits} & PR başına commit & -- \\
+\texttt{pr\_commit\_details} & dosya düzeyinde değişiklik & 12.116.310 \\\bottomrule
+\end{tabular}\end{table}
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/01_target_distribution.png}\caption{Hedef değişkenin dağılımı (kapatılmış PR'lar): sınıflar dengesizdir.}\label{fig:target}\end{figure}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/02_missing_values.png}\caption{Sütunlara göre eksik değer oranları (\%).}\label{fig:missing}\end{figure}
+
+
 \subsection{Keşifsel Bulgular}
-Sayısal 17 niteliğin tamamı güçlü biçimde sağa çarpıktır (örneğin eklenen satır sayısı, depo yıldızları, yazar takipçileri); bu nedenle ortalama yerine medyan tercih edilmiş ve log dönüşümleri denenmiştir. Çarpıklık nedeniyle IQR kuralı, $|z|>3$ kuralına göre çok daha fazla noktayı aykırı olarak işaretlemektedir; bu uç değerler gerçektir (çok büyük PR'lar, çok popüler depolar), bu yüzden silinmek yerine işlenmiştir. Birleştirme oranı ajanlar arasında belirgin biçimde farklılaşmaktadır: \%61,9 ile \%79,9 arası (Şekil~\ref{fig:agent}). Hedefle en güçlü tekil sayısal ilişki \texttt{user\_followers} değişkenine aittir (Spearman $\rho=0{,}233$). Değişiklik boyutu özelliklerinden 4 çift neredeyse aynı bilgiyi taşımaktadır ($|\rho|>0{,}85$); bu da özellik seçimini gerekli kılmaktadır.
+Sayısal 17 niteliğin tamamı güçlü biçimde sağa çarpıktır (örneğin eklenen satır sayısı, depo yıldızları, yazar takipçileri); bu nedenle ortalama yerine medyan tercih edilmiş ve log dönüşümleri denenmiştir. Çarpıklık nedeniyle IQR kuralı, $|z|>3$ kuralına göre çok daha fazla noktayı aykırı olarak işaretlemektedir; bu uç değerler gerçektir (çok büyük PR'lar, çok popüler depolar), bu yüzden silinmek yerine işlenmiştir. Birleştirme oranı ajanlar arasında belirgin biçimde farklılaşmaktadır: \%61,9 ile \%79,9 arası (Şekil~\ref{fig:agent}). Hedefle en güçlü tekil sayısal ilişki \texttt{user\_followers} değişkenine aittir (Spearman $\rho=0{,}233$). Değişiklik boyutu özelliklerinden 4 çift neredeyse aynı bilgiyi taşımaktadır ($|\rho|>0{,}85$); bu da özellik seçimini gerekli kılmaktadır (Şekil~\ref{fig:corr}). Şekil~\ref{fig:missing} eksik değerleri, Şekil~\ref{fig:target} sınıf dağılımını ve Şekil~\ref{fig:temporal} zamansal örüntüleri göstermektedir; saat ve gün bazındaki farklar tarih özelliklerinin türetilmesini desteklemektedir.
 
 \begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/05_merge_rate_agent_language.png}\caption{Yapay zekâ ajanına ve depo diline göre birleştirme oranı (kapatılmış PR'lar). Kesikli çizgi genel birleştirme oranıdır.}\label{fig:agent}\end{figure}
 \begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/10_leakage_time_to_close.png}\caption{Sınıflara göre kapanma süresi (saat). PR açıldıktan sonra oluşan bu bilgi sızıntılı bir özelliktir ve hiçbir modelde kullanılmamıştır.}\label{fig:leak}\end{figure}
 
 
+\begin{figure*}[!t]\centering\includegraphics[width=\textwidth]{figures/06_temporal_patterns.png}\caption{Haftanın günü ve saate göre birleştirme oranı ile aylık PR hacmi ve birleştirme oranı.}\label{fig:temporal}\end{figure*}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/08_correlation_heatmap.png}\caption{Sayısal özellikler ve hedef arasındaki Spearman korelasyon matrisi.}\label{fig:corr}\end{figure}
+
+
 \section{Yöntem}
 \subsection{Özellik Mühendisliği}
-Özellikler satır bazında (diğer satırlardan bilgi kullanmadan) türetildiği için eğitim/test ayrımından önce güvenle oluşturulabilir: oluşturulma zamanından \textit{tarih} özellikleri (saat, haftanın günü, hafta sonu bilgisi, ay); PR açıldığı andaki \textit{yazar} hesap yaşı; \textit{metin} özellikleri (başlık uzunluğu ve kelime sayısı, açıklama uzunluğu, boş açıklama bilgisi, \textit{feat}/\textit{fix}/\textit{docs} gibi başlık türü, kontrol listesi ve test ifadeleri); \textit{kod değişikliği} oranları (net satır, dosya başına değişen satır, test, dokümantasyon ve yapılandırma dosyalarının payı) ve depo lisans bilgisi. Ham tarih ve serbest metin sütunları daha sonra çıkarılmıştır. Modele giren son veri 38 özellik içermektedir: 34 sayısal ve 4 kategorik (ajan, depo dili, fork bilgisi, başlık türü).
+Özellikler satır bazında (diğer satırlardan bilgi kullanmadan) türetildiği için eğitim/test ayrımından önce güvenle oluşturulabilir: oluşturulma zamanından \textit{tarih} özellikleri (saat, haftanın günü, hafta sonu bilgisi, ay); PR açıldığı andaki \textit{yazar} hesap yaşı; \textit{metin} özellikleri (başlık uzunluğu ve kelime sayısı, açıklama uzunluğu, boş açıklama bilgisi, \textit{feat}/\textit{fix}/\textit{docs} gibi başlık türü, kontrol listesi ve test ifadeleri); \textit{kod değişikliği} oranları (net satır, dosya başına değişen satır, test, dokümantasyon ve yapılandırma dosyalarının payı) ve depo lisans bilgisi. Ham tarih ve serbest metin sütunları daha sonra çıkarılmıştır (Tablo~\ref{tab:eng}, Şekil~\ref{fig:eng}). Modele giren son veri 38 özellik içermektedir: 34 sayısal ve 4 kategorik (ajan, depo dili, fork bilgisi, başlık türü).
+
+\begin{table}[!t]\centering
+\caption{Türetilen özellikler.}\label{tab:eng}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lp{5.4cm}}\toprule
+Grup & Özellikler \\\midrule
+Tarih & saat, haftanın günü, hafta sonu, ay \\
+Yazar & PR anındaki hesap yaşı (gün) \\
+Metin & başlık uzunluğu ve kelime sayısı, açıklama uzunluğu, açıklama var mı, başlık türü (feat/fix/docs/...), kontrol listesi, test ifadesi \\
+Kod & net satır, dosya başına satır, test / dokümantasyon / yapılandırma dosyası oranı \\
+Depo & lisans var mı \\\bottomrule
+\end{tabular}\end{table}
+
+\begin{figure*}[!t]\centering\includegraphics[width=\textwidth]{figures/11_engineered_features_vs_target.png}\caption{Türetilen bazı özelliklere göre birleştirme oranı: başlık türü, açıklama varlığı ve hafta sonu.}\label{fig:eng}\end{figure*}
+
 
 \subsection{Sızıntıya Karşı Güvenli Ön İşleme}
 Veri önce hedef değişkene göre tabakalı olarak \%80 eğitim ve \%20 test kümesine ayrılmıştır. Veriden öğrenen her adım bir scikit-learn \texttt{Pipeline} içine yerleştirilmiş ve yalnızca eğitim katlarında fit edilmiştir: sayısal özellikler için eksik değer göstergeli medyan doldurma, kategorik özellikler için sabit kategori; aykırı değer işleme; frekansı \%1'in altındaki kategorilerin tek bir ``infrequent'' sütununda birleştirildiği one-hot kodlama (dil niteliği 184 farklı değer içermektedir) ve mesafe tabanlı ile doğrusal modellerin gerektirdiği z-skor standartlaştırması.
@@ -70,13 +105,13 @@ Veri önce hedef değişkene göre tabakalı olarak \%80 eğitim ve \%20 test k�
 Sekiz özellik kümesi karşılaştırılmıştır: tüm özellikler; üç filtre yöntemi (varyans eşiği, $|r|>0{,}9$ korelasyon filtresi, karşılıklı bilgiye göre ilk 15 özellik); iki sarmalayıcı yöntem (Lojistik Regresyon ile özyinelemeli özellik eleme ve ileri seçim) ve iki gömülü yöntem (L1 düzenlileştirmeli Lojistik Regresyon ve Random Forest önem skoru). Sızıntıyı önlemek ve çalışma süresini makul tutmak için seçiciler eğitim kümesinden alınan 15.000 PR'lık bir seçim örneğinde fit edilmiş ve bundan bağımsız 40.000 PR'lık bir örnekte değerlendirilmiştir.
 
 \subsection{Modeller ve Değerlendirme Protokolü}
-Tabakalı rastgele bir taban model, K-En Yakın Komşu (K, 5 katlı çapraz doğrulama ile ızgara aramasıyla seçilmiştir), Lojistik Regresyon, Karar Ağacı ve Random Forest karşılaştırılmıştır; son üçünde dengeli sınıf ağırlıkları kullanılmıştır. KNN tüm eğitim noktalarını saklayıp tahmin anında mesafe hesapladığı için 60.000 PR'lık tabakalı bir örnekle eğitilmiştir. Tüm modeller aynı 5 katlı tabakalı çapraz doğrulama ile değerlendirilmiştir. PR-AUC, recall ve precision için reddedilen PR'lar pozitif sınıf kabul edilmiş; ROC-AUC ve makro F1 de raporlanmıştır. En iyi model tüm eğitim kümesiyle yeniden eğitilmiş ve test kümesinde yalnızca bir kez değerlendirilmiştir.
+Tabakalı rastgele bir taban model, K-En Yakın Komşu (K, 5 katlı çapraz doğrulama ile ızgara aramasıyla seçilmiştir; Şekil~\ref{fig:knn}: K=31 en iyi sonucu vermiştir; küçük K aşırı öğrenmeye, çok büyük K ise eksik öğrenmeye yol açmaktadır), Lojistik Regresyon, Karar Ağacı ve Random Forest karşılaştırılmıştır; son üçünde dengeli sınıf ağırlıkları kullanılmıştır. KNN tüm eğitim noktalarını saklayıp tahmin anında mesafe hesapladığı için 60.000 PR'lık tabakalı bir örnekle eğitilmiştir. Tüm modeller aynı 5 katlı tabakalı çapraz doğrulama ile değerlendirilmiştir. PR-AUC, recall ve precision için reddedilen PR'lar pozitif sınıf kabul edilmiş; ROC-AUC ve makro F1 de raporlanmıştır. En iyi model tüm eğitim kümesiyle yeniden eğitilmiş ve test kümesinde yalnızca bir kez değerlendirilmiştir.
 
 \section{Sonuçlar}
 \subsection{Ön İşleme ve Özellik Seçimi}
 Lojistik Regresyon için en iyi aykırı değer yöntemi işaretli log1p dönüşümü olmuştur (PR-AUC 0,577). Standartlaştırma, KNN'in PR-AUC değerini 0,548 (ölçeklemesiz) değerinden 0,542 değerine değiştirmiştir. Fark küçüktür, çünkü log dönüşümü özelliklerin çoğunu zaten benzer aralıklara getirmektedir; yine de hiçbir özelliğin mesafe hesabına baskın olmaması için standartlaştırma korunmuştur.
 
-Tablo~\ref{tab:fs} özellik seçimi yöntemlerini karşılaştırmaktadır. En yüksek ortalama PR-AUC, \textit{E: L1 LogReg} yöntemiyle (64 sütun) elde edilmiştir; tüm 86 sütun kullanıldığında bu değer 0,581'dir. Çok daha az sütun kullanan yöntemlerin benzer skorlara ulaşması, kodlanmış sütunların birçoğunun gereksiz olduğunu göstermektedir.
+Tablo~\ref{tab:fs} ve Şekil~\ref{fig:fs} özellik seçimi yöntemlerini karşılaştırmaktadır. En yüksek ortalama PR-AUC, \textit{E: L1 LogReg} yöntemiyle (64 sütun) elde edilmiştir; tüm 86 sütun kullanıldığında bu değer 0,581'dir. Çok daha az sütun kullanan yöntemlerin benzer skorlara ulaşması, kodlanmış sütunların birçoğunun gereksiz olduğunu göstermektedir.
 
 \begin{table}[!t]\centering
 \caption{Özellik seçimi karşılaştırması: reddedilen sınıfın PR-AUC değeri (5 katlı ÇD). F = filtre, W = sarmalayıcı, E = gömülü.}\label{tab:fs}
@@ -92,6 +127,9 @@ W: ileri seçim (10) & 10 & 0,557 & 0,536 & 0,602 & 0,565 \\
 F: karşılıklı bilgi (ilk 15) & 15 & 0,546 & 0,528 & 0,597 & 0,557 \\
 W: RFE-LogReg (15) & 15 & 0,544 & 0,527 & 0,584 & 0,552 \\
 \bottomrule\end{tabular}\end{table}
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/14_feature_selection_comparison.png}\caption{Özellik seçimi yöntemlerinin üç modelle karşılaştırılması (PR-AUC, 5 katlı ÇD).}\label{fig:fs}\end{figure}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/15_knn_choose_k.png}\caption{KNN için K seçimi (5 katlı ÇD, GridSearchCV).}\label{fig:knn}\end{figure}
 
 \subsection{Model Karşılaştırması}
 Tablo~\ref{tab:cv} ve Şekil~\ref{fig:cv} 5 katlı çapraz doğrulama sonuçlarını özetlemektedir. Tüm modeller rastgele taban modeli (PR-AUC 0,258, yani reddedilen sınıfın payı) geride bırakmıştır. En yüksek PR-AUC değerini 0,674 ile Random Forest elde etmiştir. Katlar arasındaki standart sapma 0,002 olup tahminin kararlı olduğunu gösterir.
