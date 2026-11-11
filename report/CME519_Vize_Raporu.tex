@@ -1,0 +1,163 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx,booktabs,amsmath,amssymb,url,cite}
+\usepackage[hidelinks]{hyperref}
+\usepackage{balance}
+\renewcommand{\figurename}{Şekil}
+\renewcommand{\tablename}{Tablo}
+\renewcommand{\abstractname}{Özet}
+\renewcommand{\IEEEkeywordsname}{Anahtar Kelimeler}
+\renewcommand{\refname}{Kaynaklar}
+\hyphenpenalty=10000 \exhyphenpenalty=10000 \emergencystretch=2em
+\begin{document}
+\sloppy
+
+\title{Yapay Zekâ Kodlama Ajanlarının Açtığı Pull Request'lerin Kabulünün Tahmini: AIDev Veri Seti Üzerinde Bir Veri Madenciliği Çalışması}
+
+\author{\IEEEauthorblockN{Musa AL AHMED}
+\IEEEauthorblockA{\textit{CME519 Veri Madenciliği -- Vize Proje Raporu}\\
+\textit{Lisansüstü Eğitim Enstitüsü, İstanbul Topkapı Üniversitesi}\\
+İstanbul, Türkiye \\ Öğrenci No: 26221001014}}
+
+\maketitle
+
+\begin{abstract}
+OpenAI Codex, Devin, GitHub Copilot, Cursor ve Claude Code gibi otonom yapay zekâ kodlama ajanları artık gerçek açık kaynak projelerde pull request (PR) açmaktadır; ancak bu PR'ların önemli bir kısmı hiç birleştirilmemekte ve proje yöneticilerinin zamanını boşa harcamaktadır. Bu çalışmada, bir ajanın açtığı PR'ın sonucunun PR açıldığı anda tahmin edilip edilemeyeceği incelenmiştir. Kamuya açık AIDev veri setinin seçilmiş alt kümesindeki beş ilişkisel tablo birleştirilerek 22.357 depodan, 6 farklı ajan tarafından açılmış 332.406 kapatılmış PR'dan oluşan PR düzeyinde bir veri seti oluşturulmuştur (\%25,8 reddedilmiş). CRISP-DM sürecine uygun olarak tarih, metin, yazar ve kod değişikliği özellikleri türetilmiş, veri sızıntısına karşı güvenli bir ön işleme pipeline'ı kurulmuş, sekiz özellik seçimi yöntemi karşılaştırılmış ve bir taban model ile dört sınıflandırıcı (KNN, Lojistik Regresyon, Karar Ağacı, Random Forest) 5 katlı tabakalı çapraz doğrulama ile değerlendirilmiştir. Reddedilen PR'lar azınlık sınıfı olduğu için modeller temel olarak reddedilen sınıfın precision--recall eğrisi altındaki alanı (PR-AUC) ile karşılaştırılmıştır. En iyi model olan Random Forest, rastgele taban modelin 0,258 değerine karşılık 0,674 çapraz doğrulama PR-AUC değerine ve ayrılmış test kümesinde 0,815 ROC-AUC değerine ulaşmıştır. En güçlü belirleyiciler yazar ve depo özellikleridir (yazarın takipçi sayısı ve hesap yaşı, deponun fork ve yıldız sayısı); bunları kod değişikliğinin yapısı izlemektedir.
+\end{abstract}
+
+\begin{IEEEkeywords}
+veri madenciliği, pull request kabulü, yapay zekâ kodlama ajanları, dengesiz sınıflandırma, özellik seçimi, CRISP-DM
+\end{IEEEkeywords}
+
+\section{Giriş}
+Pull tabanlı geliştirme, GitHub'daki baskın katkı modelidir: bir katkıcı değişikliğini pull request (PR) olarak önerir ve proje yöneticisi bu değişikliğin birleştirilip birleştirilmeyeceğine karar verir \cite{gousios2014exploratory}. 2025'ten itibaren yeni bir katkıcı türü ortaya çıkmıştır: geliştiriciler adına kod yazan ve PR açan otonom kodlama ajanları. Bu dönüşüm ``Yazılım Mühendisliği 3.0'' olarak adlandırılmaktadır \cite{li2025rise}. Ajanlar insanlardan çok daha hızlı PR üretebilir; ancak her PR yine de insan incelemesi gerektirir ve reddedilen PR'lar değer katmadan inceleyicilerin zamanını tüketir.
+
+\textbf{Problem.} Bir ajanın açtığı PR için yalnızca PR açıldığı anda mevcut olan bilgiler kullanılarak PR'ın birleştirileceği mi yoksa birleştirilmeden kapatılacağı mı tahmin edilmektedir. Başarılı bir model, inceleme eforunun önceliklendirilmesine ve ajan kullanan geliştiricilere erken geri bildirim verilmesine yardımcı olabilir.
+
+\textbf{Katkılar.} (i) Beş AIDev tablosu birleştirilerek ve yaklaşık 12,1 milyon dosya düzeyindeki değişiklik kaydı PR düzeyine toplanarak sızıntıya dikkat edilmiş, 332.406 kapatılmış ajan PR'ından oluşan bir veri seti oluşturulmuştur; (ii) tarih, metin, yazar ve kod değişikliklerinden 18 yeni özellik türetilmiştir; (iii) dört aykırı değer işleme yöntemi, üç ölçekleyici ve sekiz özellik seçimi yöntemi karşılaştırılmıştır; (iv) dört sınıflandırıcı 5 katlı tabakalı çapraz doğrulama ile karşılaştırılmış, en iyi model ayrılmış test kümesinde değerlendirilmiş ve permutation importance ile sızıntı ablasyonu kullanılarak açıklanmıştır.
+
+Makalenin geri kalanı şöyledir: Bölüm~II ilgili çalışmaları, Bölüm~III veriyi ve keşifsel analizi, Bölüm~IV yöntemi, Bölüm~V sonuçları sunmakta, Bölüm~VI ise kısıtları ve gelecek çalışmaları tartışmaktadır.
+
+\section{İlgili Çalışmalar}
+\textbf{İnsan geliştiricilerde PR kabulü.} Gousios ve ark. \cite{gousios2014exploratory} GitHub'daki pull tabanlı geliştirmeyi incelemiş; PR'ın yakın zamanda değiştirilmiş kodlara dokunup dokunmamasının, proje büyüklüğünün ve katkıcının geçmiş başarısının birleştirme kararını etkilediğini göstermiştir. Tsay ve ark. \cite{tsay2014influence} hem sosyal faktörlerin (örneğin katkıcının önceki etkileşimleri ve takipçileri) hem de teknik faktörlerin (örneğin değişiklik boyutu ve testler) kabulü etkilediğini bulmuştur. Zhang ve ark. \cite{zhang2022pull} önceki çalışmalarda önerilen faktörleri büyük bir veri seti üzerinde sistematik olarak yeniden incelemiş ve katkıcı deneyimi, PR boyutu ve proje özelliklerinin en tutarlı belirleyiciler arasında olduğunu doğrulamıştır. Gousios ve ark. \cite{gousios2015work} ise entegratör bakış açısını ele almış; kararda kod kalitesinin ve proje normlarına uygunluğun belirleyici olduğunu göstermiştir.
+
+\textbf{GitHub'da yapay zekâ kodlama ajanları.} Li ve ark. ajanların açtığı PR'lardan oluşan AIDev veri setini tanıtmış ve ajan PR'larının çok hızlı üretildiğini ancak insan PR'larına göre daha düşük oranda kabul edildiğini raporlamıştır \cite{li2025rise, li2026aidev}. Watanabe ve ark. \cite{watanabe2025agentic} Claude Code ile oluşturulan PR'ları incelemiş; çoğunun birleştirildiğini, ancak önemli bir kısmının insan düzeltmesi gerektirdiğini bulmuştur. Bu çalışmalar kabul oranlarını betimlemektedir; bu çalışma ise tek tek ajan PR'larının birleştirilme sonucunu tahmin eden modeller kurmakta ve değerlendirmektedir.
+
+\textbf{Yöntemsel arka plan.} Çalışmada CRISP-DM süreci \cite{chapman2000crisp} ve \cite{han2011data} kaynağındaki standart teknikler izlenmiştir. Reddedilen PR'lar azınlık sınıfı olduğundan, dengesiz verilerde ROC eğrisinden daha bilgilendirici olan precision--recall eğrileri raporlanmış \cite{saito2015precision} ve veri sızıntısını önlemeye özellikle dikkat edilmiştir \cite{kaufman2012leakage}. Tüm deneyler scikit-learn \cite{pedregosa2011scikit} ile yapılmıştır.
+
+\section{Veri ve Keşifsel Veri Analizi}
+\subsection{Veri Toplama ve Birleştirme}
+AIDev, Hugging Face üzerinde yayımlanmaktadır (\texttt{hao-li/AIDev}). Çalışmada 100'den fazla GitHub yıldızına sahip depoları içeren seçilmiş alt küme ve beş tablo kullanılmıştır: \texttt{pull\_request} (361.296 PR), \texttt{repository} (25.402 depo), \texttt{all\_user} (yazar profilleri), \texttt{pr\_commits} ve \texttt{pr\_commit\_details} (12.116.310 dosya düzeyinde değişiklik kaydı). 12~GB büyüklüğündeki dosya düzeyindeki tablo, birer milyon satırlık parçalar hâlinde okunmuş ve her PR için tek satıra toplanmıştır. Sonucu bilinen yalnızca kapatılmış PR'lar olduğundan 332.406 PR kalmıştır; hedef değişken PR'ın birleştirme zaman damgası varsa \textit{merged}=1, yoksa 0'dır. Veri ham hâldedir: eksik değerler (19 sütun, en fazla \%27,3 eksik), uzun kuyruklu dağılımlar ve sınıf dengesizliği (\%74,2 birleştirilmiş, \%25,8 reddedilmiş) içermektedir.
+
+PR açıldıktan sonraki olayları tanımlayan tablolar (incelemeler, yorumlar, zaman çizelgesi) sonucu açığa vuracağı için bilinçli olarak özellik olarak kullanılmamıştır. Şekil~\ref{fig:leak} bunu göstermektedir: kapanma süresi birleştirilen ve reddedilen PR'lar arasında belirgin biçimde farklıdır ve sızıntılı bir özellik olurdu.
+
+\subsection{Keşifsel Bulgular}
+Sayısal 17 niteliğin tamamı güçlü biçimde sağa çarpıktır (örneğin eklenen satır sayısı, depo yıldızları, yazar takipçileri); bu nedenle ortalama yerine medyan tercih edilmiş ve log dönüşümleri denenmiştir. Çarpıklık nedeniyle IQR kuralı, $|z|>3$ kuralına göre çok daha fazla noktayı aykırı olarak işaretlemektedir; bu uç değerler gerçektir (çok büyük PR'lar, çok popüler depolar), bu yüzden silinmek yerine işlenmiştir. Birleştirme oranı ajanlar arasında belirgin biçimde farklılaşmaktadır: \%61,9 ile \%79,9 arası (Şekil~\ref{fig:agent}). Hedefle en güçlü tekil sayısal ilişki \texttt{user\_followers} değişkenine aittir (Spearman $\rho=0{,}233$). Değişiklik boyutu özelliklerinden 4 çift neredeyse aynı bilgiyi taşımaktadır ($|\rho|>0{,}85$); bu da özellik seçimini gerekli kılmaktadır.
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/05_merge_rate_agent_language.png}\caption{Yapay zekâ ajanına ve depo diline göre birleştirme oranı (kapatılmış PR'lar). Kesikli çizgi genel birleştirme oranıdır.}\label{fig:agent}\end{figure}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/10_leakage_time_to_close.png}\caption{Sınıflara göre kapanma süresi (saat). PR açıldıktan sonra oluşan bu bilgi sızıntılı bir özelliktir ve hiçbir modelde kullanılmamıştır.}\label{fig:leak}\end{figure}
+
+
+\section{Yöntem}
+\subsection{Özellik Mühendisliği}
+Özellikler satır bazında (diğer satırlardan bilgi kullanmadan) türetildiği için eğitim/test ayrımından önce güvenle oluşturulabilir: oluşturulma zamanından \textit{tarih} özellikleri (saat, haftanın günü, hafta sonu bilgisi, ay); PR açıldığı andaki \textit{yazar} hesap yaşı; \textit{metin} özellikleri (başlık uzunluğu ve kelime sayısı, açıklama uzunluğu, boş açıklama bilgisi, \textit{feat}/\textit{fix}/\textit{docs} gibi başlık türü, kontrol listesi ve test ifadeleri); \textit{kod değişikliği} oranları (net satır, dosya başına değişen satır, test, dokümantasyon ve yapılandırma dosyalarının payı) ve depo lisans bilgisi. Ham tarih ve serbest metin sütunları daha sonra çıkarılmıştır. Modele giren son veri 38 özellik içermektedir: 34 sayısal ve 4 kategorik (ajan, depo dili, fork bilgisi, başlık türü).
+
+\subsection{Sızıntıya Karşı Güvenli Ön İşleme}
+Veri önce hedef değişkene göre tabakalı olarak \%80 eğitim ve \%20 test kümesine ayrılmıştır. Veriden öğrenen her adım bir scikit-learn \texttt{Pipeline} içine yerleştirilmiş ve yalnızca eğitim katlarında fit edilmiştir: sayısal özellikler için eksik değer göstergeli medyan doldurma, kategorik özellikler için sabit kategori; aykırı değer işleme; frekansı \%1'in altındaki kategorilerin tek bir ``infrequent'' sütununda birleştirildiği one-hot kodlama (dil niteliği 184 farklı değer içermektedir) ve mesafe tabanlı ile doğrusal modellerin gerektirdiği z-skor standartlaştırması.
+
+\subsection{Özellik Seçimi}
+Sekiz özellik kümesi karşılaştırılmıştır: tüm özellikler; üç filtre yöntemi (varyans eşiği, $|r|>0{,}9$ korelasyon filtresi, karşılıklı bilgiye göre ilk 15 özellik); iki sarmalayıcı yöntem (Lojistik Regresyon ile özyinelemeli özellik eleme ve ileri seçim) ve iki gömülü yöntem (L1 düzenlileştirmeli Lojistik Regresyon ve Random Forest önem skoru). Sızıntıyı önlemek ve çalışma süresini makul tutmak için seçiciler eğitim kümesinden alınan 15.000 PR'lık bir seçim örneğinde fit edilmiş ve bundan bağımsız 40.000 PR'lık bir örnekte değerlendirilmiştir.
+
+\subsection{Modeller ve Değerlendirme Protokolü}
+Tabakalı rastgele bir taban model, K-En Yakın Komşu (K, 5 katlı çapraz doğrulama ile ızgara aramasıyla seçilmiştir), Lojistik Regresyon, Karar Ağacı ve Random Forest karşılaştırılmıştır; son üçünde dengeli sınıf ağırlıkları kullanılmıştır. KNN tüm eğitim noktalarını saklayıp tahmin anında mesafe hesapladığı için 60.000 PR'lık tabakalı bir örnekle eğitilmiştir. Tüm modeller aynı 5 katlı tabakalı çapraz doğrulama ile değerlendirilmiştir. PR-AUC, recall ve precision için reddedilen PR'lar pozitif sınıf kabul edilmiş; ROC-AUC ve makro F1 de raporlanmıştır. En iyi model tüm eğitim kümesiyle yeniden eğitilmiş ve test kümesinde yalnızca bir kez değerlendirilmiştir.
+
+\section{Sonuçlar}
+\subsection{Ön İşleme ve Özellik Seçimi}
+Lojistik Regresyon için en iyi aykırı değer yöntemi işaretli log1p dönüşümü olmuştur (PR-AUC 0,577). Standartlaştırma, KNN'in PR-AUC değerini 0,548 (ölçeklemesiz) değerinden 0,542 değerine değiştirmiştir. Fark küçüktür, çünkü log dönüşümü özelliklerin çoğunu zaten benzer aralıklara getirmektedir; yine de hiçbir özelliğin mesafe hesabına baskın olmaması için standartlaştırma korunmuştur.
+
+Tablo~\ref{tab:fs} özellik seçimi yöntemlerini karşılaştırmaktadır. En yüksek ortalama PR-AUC, \textit{E: L1 LogReg} yöntemiyle (64 sütun) elde edilmiştir; tüm 86 sütun kullanıldığında bu değer 0,581'dir. Çok daha az sütun kullanan yöntemlerin benzer skorlara ulaşması, kodlanmış sütunların birçoğunun gereksiz olduğunu göstermektedir.
+
+\begin{table}[!t]\centering
+\caption{Özellik seçimi karşılaştırması: reddedilen sınıfın PR-AUC değeri (5 katlı ÇD). F = filtre, W = sarmalayıcı, E = gömülü.}\label{tab:fs}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrcccc}\toprule
+Yöntem & Sütun & LogReg & KNN & RF & Ort. \\\midrule
+\textbf{E: L1 LogReg} & 64 & 0,576 & 0,548 & 0,630 & 0,585 \\
+F: varyans eşiği & 84 & 0,577 & 0,543 & 0,625 & 0,582 \\
+Tüm özellikler & 86 & 0,577 & 0,543 & 0,624 & 0,581 \\
+F: korelasyon $|$r$|$$>$0,90 & 63 & 0,577 & 0,538 & 0,623 & 0,579 \\
+E: RF önem skoru & 43 & 0,568 & 0,543 & 0,625 & 0,578 \\
+W: ileri seçim (10) & 10 & 0,557 & 0,536 & 0,602 & 0,565 \\
+F: karşılıklı bilgi (ilk 15) & 15 & 0,546 & 0,528 & 0,597 & 0,557 \\
+W: RFE-LogReg (15) & 15 & 0,544 & 0,527 & 0,584 & 0,552 \\
+\bottomrule\end{tabular}\end{table}
+
+\subsection{Model Karşılaştırması}
+Tablo~\ref{tab:cv} ve Şekil~\ref{fig:cv} 5 katlı çapraz doğrulama sonuçlarını özetlemektedir. Tüm modeller rastgele taban modeli (PR-AUC 0,258, yani reddedilen sınıfın payı) geride bırakmıştır. En yüksek PR-AUC değerini 0,674 ile Random Forest elde etmiştir. Katlar arasındaki standart sapma 0,002 olup tahminin kararlı olduğunu gösterir.
+
+\begin{table}[!t]\centering
+\caption{Eğitim kümesinde 5 katlı tabakalı çapraz doğrulama (pozitif sınıf = reddedilen).}\label{tab:cv}
+\footnotesize\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lccccc}\toprule
+Model & PR-AUC & ROC-AUC & F1-mak. & Rec. & Prec. \\\midrule
+\textbf{Random Forest} & 0,674$\pm$0,002 & 0,816 & 0,719 & 0,631 & 0,559 \\
+KNN (K=31, mesafe) & 0,595$\pm$0,010 & 0,762 & 0,636 & 0,269 & 0,772 \\
+Karar Ağacı & 0,594$\pm$0,003 & 0,764 & 0,659 & 0,657 & 0,451 \\
+Lojistik Regresyon & 0,577$\pm$0,003 & 0,753 & 0,649 & 0,659 & 0,437 \\
+Rastgele taban model & 0,258$\pm$0,001 & 0,500 & 0,500 & 0,256 & 0,258 \\
+\bottomrule\end{tabular}\end{table}
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/16_model_comparison_cv.png}\caption{Çapraz doğrulama ile PR-AUC (reddedilen sınıf) ve ROC-AUC değerleri ve katlar arası standart sapma.}\label{fig:cv}\end{figure}
+
+\subsection{Test Kümesi Değerlendirmesi}
+Hiç kullanılmamış test kümesinde (66.482 PR) Random Forest modeli Tablo~\ref{tab:test}'teki skorlara ulaşmıştır. Karmaşıklık matrisi ile ROC ve precision--recall eğrileri Şekil~\ref{fig:cm} ve Şekil~\ref{fig:curves}'te verilmiştir. Test PR-AUC değeri (0,674) çapraz doğrulama değerine çok yakındır; model daha önce görmediği PR'lara genellenebilmektedir.
+
+\begin{table}[!t]\centering
+\caption{Seçilen modelin test kümesi performansı.}\label{tab:test}
+\footnotesize
+\begin{tabular}{lc}\toprule Metrik & Değer \\\midrule
+PR-AUC (reddedilen) & 0,674 \\
+ROC-AUC & 0,815 \\
+Makro F1 & 0,718 \\
+Dengeli doğruluk & 0,730 \\
+Doğruluk & 0,774 \\
+Recall (reddedilen) & 0,638 \\
+Precision (reddedilen) & 0,553 \\
+\bottomrule\end{tabular}\end{table}
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/17_confusion_matrix.png}\caption{Test kümesinde karmaşıklık matrisi (sayılar ve sınıf bazında recall).}\label{fig:cm}\end{figure}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/18_roc_pr_curves.png}\caption{Test kümesinde ROC ve precision--recall eğrileri; pozitif sınıf ``reddedilen''dir.}\label{fig:curves}\end{figure}
+
+\subsection{Özellik Önemi ve Sızıntı Kontrolü}
+Permutation importance analizine göre (Şekil~\ref{fig:pi}) en etkili özellikler \texttt{user\_followers}, \texttt{repo\_forks}, \texttt{repo\_stars}, \texttt{lines\_per\_file}, \texttt{user\_account\_age\_days} olmuştur. Bu bulgu, katkıcı ve proje özelliklerinin tutarlı belirleyiciler olduğunu gösteren insan PR literatürüyle uyumludur \cite{tsay2014influence, zhang2022pull}. Ajan kimliği 38 özellik arasında 8. sıradadır: yazar ve depo bilgisi bilindiğinde ajanın katkısı görece küçüktür; ancak KVA'da ajanlar arasında birleştirme oranlarının belirgin biçimde farklılaştığı görülmüştür.
+
+Commit istatistikleri, inceleme geri bildiriminden sonra eklenen commit'leri de içerebilir. Commit tabanlı tüm özellikler çıkarıldığında çapraz doğrulama PR-AUC değeri -0,065 değişerek 0,609 olmuştur; bu değer hâlâ 0,258 olan taban modelin çok üzerindedir. Dolayısıyla sinyalin bir kısmı commit istatistiklerinden gelmektedir; final aşamasında bu özellikler yalnızca ilk incelemeden (review) önceki commit'lerle sınırlandırılacaktır.
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/19_permutation_importance.png}\caption{Seçilen modelin permutation importance değerleri (bir özellik karıştırıldığında test kümesindeki PR-AUC düşüşü).}\label{fig:pi}\end{figure}
+
+\section{Tartışma ve Sonuç}
+\textbf{Bulgular.} Ajan PR'larının birleştirilme sonucu, yalnızca oluşturulma anında mevcut bilgiler kullanılarak şansın üzerinde tahmin edilebilmektedir; ancak görev zordur: sınıflar tekil özelliklerde güçlü biçimde örtüşmektedir ve en iyi PR-AUC orta düzeyde kalmaktadır. En önemli etkenler yazarın itibarı ve deponun popülerliğidir; bunları değişikliğin dosyalara nasıl dağıldığı izlemektedir.
+
+\textbf{Kısıtlar.} (i) Rastgele ayrım farklı zaman dilimlerini ve depoları karıştırmaktadır; model kısmen depoya özgü alışkanlıkları öğrenebilir. Zaman veya depo bazlı ayrım planlanmaktadır. (ii) Yazar takipçi sayıları PR açıldığı ana değil, veri toplama anına aittir. (iii) Bu vize aşamasında hiperparametreler ve karar eşiği ayarlanmamıştır. (iv) Metin yalnızca basit istatistiklerle temsil edilmiştir.
+
+\textbf{Gelecek çalışmalar (final projesi).} Hiperparametre ve karar eşiği ayarı yapılacak; gradient boosting modelleri ve maliyete duyarlı öğrenme eklenecek; zaman çizelgesi tablosu kullanılarak commit özellikleri ilk incelemeden önceki commit'lerle sınırlandırılacak ve Clean Code analiz aracımız \textit{CleanLens} ile hesaplanan kod kalitesi özellikleri (fonksiyon uzunluğu, karmaşıklık, iç içelik, kod tekrarı, boş catch blokları, gömülü gizli anahtarlar) eklenecektir. Nihai model, yapay zekâ kaynaklı sorunlu değişikliklerin erken tespiti için CleanLens'e entegre edilecektir.
+
+\textbf{Kod erişimi.} Tüm notebook'lar, şekiller ve sonuç tabloları \url{https://github.com/MUSAALAHMED4/CME519-AIDev-PR-Acceptance} adresinde mevcuttur.
+
+\balance
+\begin{thebibliography}{10}
+\bibitem{gousios2014exploratory} G. Gousios, M. Pinzger, and A. van Deursen, ``An exploratory study of the pull-based software development model,'' in \textit{Proc. 36th Int. Conf. Software Engineering (ICSE)}, 2014, pp. 345--355.
+\bibitem{gousios2015work} G. Gousios, A. Zaidman, M.-A. Storey, and A. van Deursen, ``Work practices and challenges in pull-based development: The integrator's perspective,'' in \textit{Proc. 37th Int. Conf. Software Engineering (ICSE)}, 2015, pp. 358--368.
+\bibitem{tsay2014influence} J. Tsay, L. Dabbish, and J. Herbsleb, ``Influence of social and technical factors for evaluating contribution in GitHub,'' in \textit{Proc. 36th Int. Conf. Software Engineering (ICSE)}, 2014, pp. 356--366.
+\bibitem{zhang2022pull} X. Zhang, Y. Yu, G. Gousios, and A. Rastogi, ``Pull request decisions explained: An empirical overview,'' \textit{IEEE Trans. Software Engineering}, vol. 49, no. 2, pp. 849--871, 2023.
+\bibitem{li2025rise} H. Li, H. Zhang, and A. E. Hassan, ``The rise of AI teammates in software engineering (SE) 3.0: How autonomous coding agents are reshaping software engineering,'' arXiv:2507.15003, 2025.
+\bibitem{li2026aidev} H. Li, H. Zhang, and A. E. Hassan, ``AIDev: Studying AI coding agents on GitHub,'' arXiv:2602.09185, 2026.
+\bibitem{watanabe2025agentic} M. Watanabe, H. Li, Y. Kashiwa, B. Reid, H. Iida, and A. E. Hassan, ``On the use of agentic coding: An empirical study of pull requests on GitHub,'' arXiv:2509.14745, 2025.
+\bibitem{chapman2000crisp} P. Chapman \textit{et al.}, ``CRISP-DM 1.0: Step-by-step data mining guide,'' SPSS Inc., 2000.
+\bibitem{han2011data} J. Han, M. Kamber, and J. Pei, \textit{Data Mining: Concepts and Techniques}, 3rd ed. Morgan Kaufmann, 2011.
+\bibitem{saito2015precision} T. Saito and M. Rehmsmeier, ``The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets,'' \textit{PLoS ONE}, vol. 10, no. 3, e0118432, 2015.
+\bibitem{kaufman2012leakage} S. Kaufman, S. Rosset, C. Perlich, and O. Stitelman, ``Leakage in data mining: Formulation, detection, and avoidance,'' \textit{ACM Trans. Knowledge Discovery from Data}, vol. 6, no. 4, pp. 1--21, 2012.
+\bibitem{pedregosa2011scikit} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Machine Learning Research}, vol. 12, pp. 2825--2830, 2011.
+\end{thebibliography}
+\end{document}

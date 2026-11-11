@@ -58,5 +58,5 @@ En etkili özellikler (permutation importance): yazarın takipçi sayısı, depo
 | Klasör | İçerik |
 |---|---|
 | `notebooks/` | çıktılarıyla birlikte üç notebook |
-| `report/` | IEEE konferans formatında vize raporu (PDF ve LaTeX kaynağı) |
+| `report/` | IEEE konferans formatında vize raporu: `CME519_Vize_Raporu.pdf` (Türkçe) ve İngilizce sürümü (PDF ve LaTeX kaynağı) |
 | `results/` | tüm grafikler (`figures/`) ve sonuç tabloları (CSV) |
