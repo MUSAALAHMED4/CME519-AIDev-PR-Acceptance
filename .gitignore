@@ -1,0 +1,6 @@
+*.parquet
+aidev_cache/
+raw_cache/
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
