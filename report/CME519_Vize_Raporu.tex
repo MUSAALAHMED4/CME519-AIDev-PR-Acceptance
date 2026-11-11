@@ -2,7 +2,8 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{graphicx,booktabs,amsmath,amssymb,url,cite}
-\usepackage[hidelinks]{hyperref}
+\usepackage{mathptmx}
+\usepackage[hidelinks,pdfauthor={Musa AL AHMED},pdftitle={Yapay Zeka Kodlama Ajanlarinin Actigi Pull Request'lerin Kabulunun Tahmini},pdfsubject={CME519 Veri Madenciligi Vize Raporu},pdfcreator={LaTeX}]{hyperref}
 \usepackage{balance}
 \renewcommand{\figurename}{Şekil}
 \renewcommand{\tablename}{Tablo}
@@ -33,18 +34,21 @@ veri madenciliği, pull request kabulü, yapay zekâ kodlama ajanları, dengesiz
 \section{Giriş}
 Pull tabanlı geliştirme, GitHub'daki baskın katkı modelidir: bir katkıcı değişikliğini pull request (PR) olarak önerir ve proje yöneticisi bu değişikliğin birleştirilip birleştirilmeyeceğine karar verir \cite{gousios2014exploratory}. 2025'ten itibaren yeni bir katkıcı türü ortaya çıkmıştır: geliştiriciler adına kod yazan ve PR açan otonom kodlama ajanları. Bu dönüşüm ``Yazılım Mühendisliği 3.0'' olarak adlandırılmaktadır \cite{li2025rise}. Ajanlar insanlardan çok daha hızlı PR üretebilir; ancak her PR yine de insan incelemesi gerektirir ve reddedilen PR'lar değer katmadan inceleyicilerin zamanını tüketir.
 
-\textbf{Problem.} Bir ajanın açtığı PR için yalnızca PR açıldığı anda mevcut olan bilgiler kullanılarak PR'ın birleştirileceği mi yoksa birleştirilmeden kapatılacağı mı tahmin edilmektedir. Başarılı bir model, inceleme eforunun önceliklendirilmesine ve ajan kullanan geliştiricilere erken geri bildirim verilmesine yardımcı olabilir.
+Bir ajanın açtığı PR için yalnızca PR açıldığı anda mevcut olan bilgiler kullanılarak PR'ın birleştirileceği mi yoksa birleştirilmeden kapatılacağı mı tahmin edilmektedir. Başarılı bir model, inceleme eforunun önceliklendirilmesine ve ajan kullanan geliştiricilere erken geri bildirim verilmesine yardımcı olabilir.
 
-\textbf{Katkılar.} (i) Beş AIDev tablosu birleştirilerek ve yaklaşık 12,1 milyon dosya düzeyindeki değişiklik kaydı PR düzeyine toplanarak sızıntıya dikkat edilmiş, 332.406 kapatılmış ajan PR'ından oluşan bir veri seti oluşturulmuştur; (ii) tarih, metin, yazar ve kod değişikliklerinden 18 yeni özellik türetilmiştir; (iii) dört aykırı değer işleme yöntemi, üç ölçekleyici ve sekiz özellik seçimi yöntemi karşılaştırılmıştır; (iv) dört sınıflandırıcı 5 katlı tabakalı çapraz doğrulama ile karşılaştırılmış, en iyi model ayrılmış test kümesinde değerlendirilmiş ve permutation importance ile sızıntı ablasyonu kullanılarak açıklanmıştır.
+Bu çalışmanın katkıları şunlardır: (i) Beş AIDev tablosu birleştirilerek ve yaklaşık 12,1 milyon dosya düzeyindeki değişiklik kaydı PR düzeyine toplanarak sızıntıya dikkat edilmiş, 332.406 kapatılmış ajan PR'ından oluşan bir veri seti oluşturulmuştur; (ii) tarih, metin, yazar ve kod değişikliklerinden 18 yeni özellik türetilmiştir; (iii) dört aykırı değer işleme yöntemi, üç ölçekleyici ve sekiz özellik seçimi yöntemi karşılaştırılmıştır; (iv) dört sınıflandırıcı 5 katlı tabakalı çapraz doğrulama ile karşılaştırılmış, en iyi model ayrılmış test kümesinde değerlendirilmiş ve permutation importance ile sızıntı ablasyonu kullanılarak açıklanmıştır.
 
 Makalenin geri kalanı şöyledir: Bölüm~II ilgili çalışmaları, Bölüm~III veriyi ve keşifsel analizi, Bölüm~IV yöntemi, Bölüm~V sonuçları sunmakta, Bölüm~VI ise kısıtları ve gelecek çalışmaları tartışmaktadır.
 
 \section{İlgili Çalışmalar}
-\textbf{İnsan geliştiricilerde PR kabulü.} Gousios ve ark. \cite{gousios2014exploratory} GitHub'daki pull tabanlı geliştirmeyi incelemiş; PR'ın yakın zamanda değiştirilmiş kodlara dokunup dokunmamasının, proje büyüklüğünün ve katkıcının geçmiş başarısının birleştirme kararını etkilediğini göstermiştir. Tsay ve ark. \cite{tsay2014influence} hem sosyal faktörlerin (örneğin katkıcının önceki etkileşimleri ve takipçileri) hem de teknik faktörlerin (örneğin değişiklik boyutu ve testler) kabulü etkilediğini bulmuştur. Zhang ve ark. \cite{zhang2022pull} önceki çalışmalarda önerilen faktörleri büyük bir veri seti üzerinde sistematik olarak yeniden incelemiş ve katkıcı deneyimi, PR boyutu ve proje özelliklerinin en tutarlı belirleyiciler arasında olduğunu doğrulamıştır.
+\subsection{İnsan Geliştiricilerde PR Kabulü}
+Gousios ve ark. \cite{gousios2014exploratory} GitHub'daki pull tabanlı geliştirmeyi incelemiş; PR'ın yakın zamanda değiştirilmiş kodlara dokunup dokunmamasının, proje büyüklüğünün ve katkıcının geçmiş başarısının birleştirme kararını etkilediğini göstermiştir. Tsay ve ark. \cite{tsay2014influence} hem sosyal faktörlerin (örneğin katkıcının önceki etkileşimleri ve takipçileri) hem de teknik faktörlerin (örneğin değişiklik boyutu ve testler) kabulü etkilediğini bulmuştur. Zhang ve ark. \cite{zhang2022pull} önceki çalışmalarda önerilen faktörleri büyük bir veri seti üzerinde sistematik olarak yeniden incelemiş ve katkıcı deneyimi, PR boyutu ve proje özelliklerinin en tutarlı belirleyiciler arasında olduğunu doğrulamıştır.
 
-\textbf{GitHub'da yapay zekâ kodlama ajanları.} Li ve ark. ajanların açtığı PR'lardan oluşan AIDev veri setini tanıtmış ve ajan PR'larının çok hızlı üretildiğini ancak insan PR'larına göre daha düşük oranda kabul edildiğini raporlamıştır \cite{li2025rise, li2026aidev}. Watanabe ve ark. \cite{watanabe2025agentic} Claude Code ile oluşturulan PR'ları incelemiş; çoğunun birleştirildiğini, ancak önemli bir kısmının insan düzeltmesi gerektirdiğini bulmuştur. Bu çalışmalar kabul oranlarını betimlemektedir; bu çalışma ise tek tek ajan PR'larının birleştirilme sonucunu tahmin eden modeller kurmakta ve değerlendirmektedir.
+\subsection{GitHub'da Yapay Zekâ Kodlama Ajanları}
+Li ve ark. ajanların açtığı PR'lardan oluşan AIDev veri setini tanıtmış ve ajan PR'larının çok hızlı üretildiğini ancak insan PR'larına göre daha düşük oranda kabul edildiğini raporlamıştır \cite{li2025rise, li2026aidev}. Watanabe ve ark. \cite{watanabe2025agentic} Claude Code ile oluşturulan PR'ları incelemiş; çoğunun birleştirildiğini, ancak önemli bir kısmının insan düzeltmesi gerektirdiğini bulmuştur. Bu çalışmalar kabul oranlarını betimlemektedir; bu çalışma ise tek tek ajan PR'larının birleştirilme sonucunu tahmin eden modeller kurmakta ve değerlendirmektedir.
 
-\textbf{Yöntemsel arka plan.} Çalışmada veri madenciliği projelerinde fiilî standart olan CRISP-DM süreci izlenmiştir \cite{schroer2021crisp}. Reddedilen PR'lar azınlık sınıfı olduğundan, dengesiz verilerde ROC eğrisinden daha bilgilendirici olan precision--recall eğrileri raporlanmış \cite{saito2015precision} ve veri sızıntısını önlemeye özellikle dikkat edilmiştir \cite{kaufman2012leakage}. Tüm deneyler scikit-learn \cite{pedregosa2011scikit} ile yapılmıştır.
+\subsection{Yöntemsel Arka Plan}
+Çalışmada veri madenciliği projelerinde yaygın olarak kullanılan CRISP-DM süreci izlenmiştir \cite{schroer2021crisp}. Reddedilen PR'lar azınlık sınıfı olduğundan, dengesiz verilerde ROC eğrisinden daha bilgilendirici olan precision--recall eğrileri raporlanmış \cite{saito2015precision} ve veri sızıntısını önlemeye özellikle dikkat edilmiştir \cite{kaufman2012leakage}. Tüm deneyler scikit-learn \cite{pedregosa2011scikit} ile yapılmıştır.
 
 \section{Veri ve Keşifsel Veri Analizi}
 \subsection{Veri Toplama ve Birleştirme}
@@ -175,13 +179,16 @@ Commit istatistikleri, inceleme geri bildiriminden sonra eklenen commit'leri de 
 \begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/19_permutation_importance.png}\caption{Seçilen modelin permutation importance değerleri (bir özellik karıştırıldığında test kümesindeki PR-AUC düşüşü).}\label{fig:pi}\end{figure}
 
 \section{Tartışma ve Sonuç}
-\textbf{Bulgular.} Ajan PR'larının birleştirilme sonucu, yalnızca oluşturulma anında mevcut bilgiler kullanılarak şansın üzerinde tahmin edilebilmektedir; ancak görev zordur: sınıflar tekil özelliklerde güçlü biçimde örtüşmektedir ve en iyi PR-AUC orta düzeyde kalmaktadır. En önemli etkenler yazarın itibarı ve deponun popülerliğidir; bunları değişikliğin dosyalara nasıl dağıldığı izlemektedir.
+\subsection{Bulgular}
+Ajan PR'larının birleştirilme sonucu, yalnızca oluşturulma anında mevcut bilgiler kullanılarak şansın üzerinde tahmin edilebilmektedir; ancak görev zordur: sınıflar tekil özelliklerde güçlü biçimde örtüşmektedir ve en iyi PR-AUC orta düzeyde kalmaktadır. En önemli etkenler yazarın itibarı ve deponun popülerliğidir; bunları değişikliğin dosyalara nasıl dağıldığı izlemektedir.
 
-\textbf{Kısıtlar.} (i) Rastgele ayrım farklı zaman dilimlerini ve depoları karıştırmaktadır; model kısmen depoya özgü alışkanlıkları öğrenebilir. Zaman veya depo bazlı ayrım planlanmaktadır. (ii) Yazar takipçi sayıları PR açıldığı ana değil, veri toplama anına aittir. (iii) Bu vize aşamasında hiperparametreler ve karar eşiği ayarlanmamıştır. (iv) Metin yalnızca basit istatistiklerle temsil edilmiştir.
+\subsection{Kısıtlar}
+(i) Rastgele ayrım farklı zaman dilimlerini ve depoları karıştırmaktadır; model kısmen depoya özgü alışkanlıkları öğrenebilir. Zaman veya depo bazlı ayrım planlanmaktadır. (ii) Yazar takipçi sayıları PR açıldığı ana değil, veri toplama anına aittir. (iii) Bu vize aşamasında hiperparametreler ve karar eşiği ayarlanmamıştır. (iv) Metin yalnızca basit istatistiklerle temsil edilmiştir.
 
-\textbf{Gelecek çalışmalar (final projesi).} Hiperparametre ve karar eşiği ayarı yapılacak; gradient boosting modelleri ve maliyete duyarlı öğrenme eklenecek; zaman çizelgesi tablosu kullanılarak commit özellikleri ilk incelemeden önceki commit'lerle sınırlandırılacak ve Clean Code analiz aracımız \textit{CleanLens} ile hesaplanan kod kalitesi özellikleri (fonksiyon uzunluğu, karmaşıklık, iç içelik, kod tekrarı, boş catch blokları, gömülü gizli anahtarlar) eklenecektir. Nihai model, yapay zekâ kaynaklı sorunlu değişikliklerin erken tespiti için CleanLens'e entegre edilecektir.
+\subsection{Gelecek Çalışmalar}
+Final projesinde hiperparametre ve karar eşiği ayarı yapılacak; gradient boosting modelleri ve maliyete duyarlı öğrenme eklenecek; zaman çizelgesi tablosu kullanılarak commit özellikleri ilk incelemeden önceki commit'lerle sınırlandırılacak ve Clean Code analiz aracımız \textit{CleanLens} ile hesaplanan kod kalitesi özellikleri (fonksiyon uzunluğu, karmaşıklık, iç içelik, kod tekrarı, boş catch blokları, gömülü gizli anahtarlar) eklenecektir. Nihai model, yapay zekâ kaynaklı sorunlu değişikliklerin erken tespiti için CleanLens'e entegre edilecektir.
 
-\textbf{Kod erişimi.} Tüm notebook'lar, şekiller ve sonuç tabloları \url{https://github.com/MUSAALAHMED4/CME519-AIDev-PR-Acceptance} adresinde mevcuttur.
+Tüm notebook'lar, şekiller ve sonuç tabloları \url{https://github.com/MUSAALAHMED4/CME519-AIDev-PR-Acceptance} adresinde mevcuttur.
 
 \balance
 \begin{thebibliography}{10}
