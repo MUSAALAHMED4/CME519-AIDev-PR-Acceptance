@@ -1,0 +1,152 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{graphicx,booktabs,amsmath,amssymb,url,cite}
+\usepackage[hidelinks]{hyperref}
+\usepackage{balance}
+\begin{document}
+
+\title{Predicting the Acceptance of Pull Requests Opened by AI Coding Agents: A Data Mining Study on the AIDev Dataset}
+
+\author{\IEEEauthorblockN{Musa AL AHMED}
+\IEEEauthorblockA{\textit{CME519 Data Mining -- Midterm Project Report}\\
+\textit{Graduate School, Istanbul Topkap\i{} University}\\
+Istanbul, T\"urkiye \\ Student No: 26221001014}}
+
+\maketitle
+
+\begin{abstract}
+Autonomous AI coding agents such as OpenAI Codex, Devin, GitHub Copilot, Cursor and Claude Code now open pull requests (PRs) in real open-source projects, but a large share of these PRs is never merged, which wastes maintainer effort. This paper studies whether the outcome of an agent-authored PR can be predicted at the moment it is opened. Using the curated subset of the public AIDev dataset, we integrate five relational tables into one PR-level dataset of 332,406 closed PRs from 22,357 repositories (25.8\% rejected) produced by 6 agents. Following CRISP-DM, we engineer date, text, author and code-change features, build a leakage-safe preprocessing pipeline, compare eight feature-selection methods and evaluate a baseline and four classifiers (KNN, Logistic Regression, Decision Tree, Random Forest) with 5-fold stratified cross-validation. Because rejected PRs are the minority class, models are compared mainly by the precision--recall AUC (PR-AUC) of the rejected class. The best model, Random Forest, reaches a cross-validated PR-AUC of 0.674 versus 0.258 for a random baseline, and a ROC-AUC of 0.815 on the held-out test set. Author and repository characteristics (author followers and account age, repository forks and stars) are the strongest predictors, followed by the shape of the code change.
+\end{abstract}
+
+\begin{IEEEkeywords}
+data mining, pull request acceptance, AI coding agents, imbalanced classification, feature selection, CRISP-DM
+\end{IEEEkeywords}
+
+\section{Introduction}
+Pull-based development is the dominant contribution model on GitHub: a contributor proposes a change as a pull request (PR) and a project maintainer decides whether to merge it \cite{gousios2014exploratory}. Since 2025, a new type of contributor has appeared: autonomous coding agents that write code and open PRs on behalf of developers, a shift described as ``Software Engineering 3.0'' \cite{li2025rise}. Agents can produce PRs much faster than humans, but every PR still needs human review, and rejected PRs consume reviewer time without adding value.
+
+\textbf{Problem.} Given only the information available when an agent-authored PR is opened, predict whether it will be merged or closed without merge. An accurate model can prioritise review effort and give early feedback to developers who use agents.
+
+\textbf{Contributions.} (i) We build a leakage-aware, PR-level dataset of 332,406 closed agent PRs by integrating five AIDev tables, aggregating about 12.1 million file-level change records; (ii) we engineer 18 features from dates, text, authors and code changes; (iii) we compare four outlier treatments, three scalers and eight feature-selection methods; and (iv) we compare four classifiers with 5-fold stratified cross-validation, evaluate the best one on a held-out test set and explain it with permutation importance and a leakage ablation.
+
+The rest of the paper is organised as follows: Section~II reviews related work, Section~III describes the data and the exploratory analysis, Section~IV the method, Section~V the results, and Section~VI discusses limitations and future work.
+
+\section{Related Work}
+\textbf{PR acceptance in human development.} Gousios \textit{et al.} \cite{gousios2014exploratory} analysed pull-based development on GitHub and showed that whether a PR touches recently modified code, the project's size and the contributor's track record influence the merge decision. Tsay \textit{et al.} \cite{tsay2014influence} found that both social factors (e.g., the submitter's prior interaction and followers) and technical factors (e.g., size and tests) affect acceptance. Zhang \textit{et al.} \cite{zhang2022pull} systematically re-examined the factors proposed in earlier studies on a large dataset and confirmed that contributor experience, PR size and project characteristics are among the most consistent predictors. Gousios \textit{et al.} \cite{gousios2015work} described the integrator's perspective, where code quality and conformance to project norms dominate the decision.
+
+\textbf{AI coding agents on GitHub.} Li \textit{et al.} introduced the AIDev dataset of agent-authored PRs and reported that agent PRs are produced at high speed but are accepted less often than human PRs \cite{li2025rise, li2026aidev}. Watanabe \textit{et al.} \cite{watanabe2025agentic} studied PRs created with Claude Code and found that most were merged but many needed human revision. These works describe acceptance rates; this paper instead builds and evaluates predictive models for the merge outcome of individual agent PRs.
+
+\textbf{Methodological background.} We follow the CRISP-DM process \cite{chapman2000crisp} and standard techniques from \cite{han2011data}. Because rejected PRs are the minority class, we report precision--recall curves, which are more informative than ROC curves on imbalanced data \cite{saito2015precision}, and we take explicit care to avoid data leakage \cite{kaufman2012leakage}. All experiments use scikit-learn \cite{pedregosa2011scikit}.
+
+\section{Data and Exploratory Analysis}
+\subsection{Data Collection and Integration}
+AIDev is published on Hugging Face (\texttt{hao-li/AIDev}). We use its curated subset of repositories with more than 100 GitHub stars and five tables: \texttt{pull\_request} (361,296 PRs), \texttt{repository} (25,402 repositories), \texttt{all\_user} (author profiles), \texttt{pr\_commits} and \texttt{pr\_commit\_details} (12,116,310 file-level change records). The file-level table (12~GB) was streamed in batches of one million rows and aggregated to one row per PR. Only closed PRs have a known outcome, which leaves 332,406 PRs; the target is \textit{merged}=1 if the PR has a merge timestamp and 0 otherwise. The data are raw: they contain missing values (19 columns, up to 27.3\% missing), heavy-tailed distributions and class imbalance (74.2\% merged vs. 25.8\% rejected).
+
+Tables that describe events after the PR is opened (reviews, comments, timeline) were deliberately not used as features, because they would reveal the outcome. Fig.~\ref{fig:leak} illustrates this: time-to-close differs strongly between merged and rejected PRs and would be a leaking feature.
+
+\subsection{Exploratory Findings}
+All 17 numeric attributes are strongly right-skewed (e.g., lines added, repository stars, author followers), so medians were preferred over means and log transforms were tested. The IQR rule flags many more points than the $|z|>3$ rule because of the skew; these extreme values are real (very large PRs, very popular repositories), so they were treated rather than removed. The merge rate differs clearly between agents, from 61.9\% to 79.9\% (Fig.~\ref{fig:agent}), and the strongest single numeric correlate of the target is \texttt{user\_followers} (Spearman $\rho=0.233$). 4 pairs of change-size features are almost redundant ($|\rho|>0.85$), which motivates feature selection.
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/05_merge_rate_agent_language.png}\caption{Merge rate by AI agent and by repository language (closed PRs). The dashed line is the overall merge rate.}\label{fig:agent}\end{figure}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/10_leakage_time_to_close.png}\caption{Hours to close by class. This post-creation information is a leakage feature and is excluded from all models.}\label{fig:leak}\end{figure}
+
+
+\section{Methodology}
+\subsection{Feature Engineering}
+Features were derived row by row (no information from other rows), which is safe before the train/test split: \textit{date} features from the creation time (hour, weekday, weekend flag, month); \textit{author} account age at PR creation; \textit{text} features (title length and word count, description length, empty-description flag, conventional-commit title type such as \textit{feat}/\textit{fix}/\textit{docs}, checklist and test mentions); \textit{code-change} ratios (net lines, lines per file, share of test, documentation and configuration files); and a repository licence flag. The raw dates and free text were then dropped. The final model input has 38 features: 34 numeric and 4 categorical (agent, repository language, fork flag, title type).
+
+\subsection{Leakage-Safe Preprocessing}
+The data were split first into 80\% training and 20\% test sets, stratified by the target. Every step that learns from data is wrapped in a scikit-learn \texttt{Pipeline} and fitted on training folds only: median imputation with missing-value indicators for numeric features and a constant category for categorical ones; outlier treatment; one-hot encoding in which categories below 1\% frequency are merged into an ``infrequent'' column (the language attribute has 184 values); and z-score standardisation, which distance-based and linear models require.
+
+\subsection{Feature Selection}
+Eight feature sets were compared: all features; three filters (variance threshold, correlation filter $|r|>0.9$, top-15 mutual information); two wrappers (recursive feature elimination and forward selection with Logistic Regression); and two embedded methods (L1-regularised Logistic Regression and Random-Forest importance). To prevent leakage and keep runtime feasible, selectors were fitted on a 15{,}000-PR selection sample and evaluated on a disjoint 40{,}000-PR sample of the training set.
+
+\subsection{Models and Evaluation Protocol}
+We compare a stratified random baseline, K-Nearest Neighbours (K chosen by grid search with 5-fold CV), Logistic Regression, a Decision Tree and a Random Forest; the latter three use balanced class weights. KNN stores all training points and computes distances at prediction time, so it was trained on a 60{,}000-PR stratified sample. All models are evaluated with the same 5-fold stratified cross-validation. Rejected PRs are treated as the positive class for PR-AUC, recall and precision; ROC-AUC and macro-F1 are also reported. The best model is refitted on the full training set and evaluated once on the test set.
+
+\section{Results}
+\subsection{Preprocessing and Feature Selection}
+For Logistic Regression the best outlier treatment was a signed log1p transform (PR-AUC 0.577). Standardisation changed KNN's PR-AUC from 0.548 (unscaled) to 0.542. On this data the difference is small, because the log transform already brings most features to comparable ranges; standardisation is kept so that no feature dominates the distance computation.
+
+Table~\ref{tab:fs} compares the feature-selection methods. The best average PR-AUC was obtained with \textit{Embedded: L1 LogReg} (64 columns), compared with 0.581 when all 86 columns are used. Methods with far fewer columns reach similar scores, which shows that many encoded columns are redundant.
+
+\begin{table}[!t]\centering
+\caption{Feature-selection comparison: PR-AUC of the rejected class (5-fold CV). F = filter, W = wrapper, E = embedded.}\label{tab:fs}
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrcccc}\toprule
+Method & \#cols & LogReg & KNN & RF & Mean \\\midrule
+\textbf{E: L1 LogReg} & 64 & 0.576 & 0.548 & 0.630 & 0.585 \\
+F: variance threshold & 84 & 0.577 & 0.543 & 0.625 & 0.582 \\
+All features & 86 & 0.577 & 0.543 & 0.624 & 0.581 \\
+F: correlation $|$r$|$$>$0.90 & 63 & 0.577 & 0.538 & 0.623 & 0.579 \\
+E: RandomForest importance & 43 & 0.568 & 0.543 & 0.625 & 0.578 \\
+W: forward selection (10) & 10 & 0.557 & 0.536 & 0.602 & 0.565 \\
+F: mutual information (top 15) & 15 & 0.546 & 0.528 & 0.597 & 0.557 \\
+W: RFE-LogReg (15) & 15 & 0.544 & 0.527 & 0.584 & 0.552 \\
+\bottomrule\end{tabular}\end{table}
+
+\subsection{Model Comparison}
+Table~\ref{tab:cv} and Fig.~\ref{fig:cv} summarise the 5-fold cross-validation. All models outperform the random baseline (PR-AUC 0.258, equal to the rejected share). Random Forest obtains the highest PR-AUC (0.674)  with a standard deviation across folds of 0.002, indicating a stable estimate.
+
+\begin{table}[!t]\centering
+\caption{5-fold stratified CV on the training set (rejected = positive class).}\label{tab:cv}
+\footnotesize\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lccccc}\toprule
+Model & PR-AUC & ROC-AUC & F1-mac. & Rec. & Prec. \\\midrule
+\textbf{Random Forest} & 0.674$\pm$0.002 & 0.816 & 0.719 & 0.631 & 0.559 \\
+KNN (K=31, distance) & 0.595$\pm$0.010 & 0.762 & 0.636 & 0.269 & 0.772 \\
+Decision Tree & 0.594$\pm$0.003 & 0.764 & 0.659 & 0.657 & 0.451 \\
+Logistic Regression & 0.577$\pm$0.003 & 0.753 & 0.649 & 0.659 & 0.437 \\
+Baseline (stratified) & 0.258$\pm$0.001 & 0.500 & 0.500 & 0.256 & 0.258 \\
+\bottomrule\end{tabular}\end{table}
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/16_model_comparison_cv.png}\caption{Cross-validated PR-AUC (rejected class) and ROC-AUC with standard deviation across folds.}\label{fig:cv}\end{figure}
+
+\subsection{Test-Set Evaluation}
+On the untouched test set (66,482 PRs) the Random Forest model achieves the scores in Table~\ref{tab:test}. The confusion matrix and the ROC and precision--recall curves are shown in Fig.~\ref{fig:cm} and Fig.~\ref{fig:curves}. The test PR-AUC (0.674) is close to the cross-validated value, so the model generalises to unseen PRs.
+
+\begin{table}[!t]\centering
+\caption{Test-set performance of the selected model.}\label{tab:test}
+\footnotesize
+\begin{tabular}{lc}\toprule Metric & Value \\\midrule
+PR-AUC (rejected) & 0.674 \\
+ROC-AUC & 0.815 \\
+F1 macro & 0.718 \\
+Balanced accuracy & 0.730 \\
+Accuracy & 0.774 \\
+Recall (rejected) & 0.638 \\
+Precision (rejected) & 0.553 \\
+\bottomrule\end{tabular}\end{table}
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/17_confusion_matrix.png}\caption{Confusion matrix on the test set (counts and recall per class).}\label{fig:cm}\end{figure}
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/18_roc_pr_curves.png}\caption{ROC and precision--recall curves on the test set; the positive class is ``rejected''.}\label{fig:curves}\end{figure}
+
+\subsection{Feature Importance and Leakage Check}
+Permutation importance (Fig.~\ref{fig:pi}) ranks \texttt{user\_followers}, \texttt{repo\_forks}, \texttt{repo\_stars}, \texttt{lines\_per\_file}, \texttt{user\_account\_age\_days} as the most influential features. This agrees with the human-PR literature, where contributor and project characteristics are consistent predictors \cite{tsay2014influence, zhang2022pull}. The agent identity ranks 8th of 38 features: once author and repository are known, the agent adds comparatively little, although merge rates differ between agents in the EDA.
+
+Commit statistics may include commits pushed after reviewer feedback. Removing all commit-based features changes the cross-validated PR-AUC by -0.065 (to 0.609, still far above the 0.258 baseline), so part of the signal comes from commit statistics; restricting them to commits made before the first review is planned for the final project.
+
+\begin{figure}[!t]\centering\includegraphics[width=\columnwidth]{figures/19_permutation_importance.png}\caption{Permutation importance of the selected model (drop in PR-AUC on the test set when a feature is shuffled).}\label{fig:pi}\end{figure}
+
+\section{Discussion and Conclusion}
+\textbf{Findings.} The merge outcome of agent PRs can be predicted above chance using only information available at creation time, but the task is hard: the classes overlap strongly in single features, and the best PR-AUC remains moderate. Author reputation and repository popularity matter most, followed by how the change is distributed over files.
+
+\textbf{Limitations.} (i) The random split mixes time periods and repositories, so the model may partly learn repository-specific habits; a time-based or repository-grouped split is planned. (ii) Author follower counts are snapshots taken at data collection, not at PR creation. (iii) Hyperparameters and the decision threshold were not tuned in this midterm phase. (iv) Text was represented only by simple statistics.
+
+\textbf{Future work (final project).} We will tune hyperparameters and the decision threshold, add gradient-boosting models and cost-sensitive learning, restrict commit features to commits made before the first review using the timeline table, and add code-quality features (function length, complexity, nesting, duplication, empty catch blocks, hard-coded secrets) computed with our Clean-Code analysis tool \textit{CleanLens}, into which the final model will be integrated for early detection of problematic AI-generated changes.
+
+\balance
+\begin{thebibliography}{10}
+\bibitem{gousios2014exploratory} G. Gousios, M. Pinzger, and A. van Deursen, ``An exploratory study of the pull-based software development model,'' in \textit{Proc. 36th Int. Conf. Software Engineering (ICSE)}, 2014, pp. 345--355.
+\bibitem{gousios2015work} G. Gousios, A. Zaidman, M.-A. Storey, and A. van Deursen, ``Work practices and challenges in pull-based development: The integrator's perspective,'' in \textit{Proc. 37th Int. Conf. Software Engineering (ICSE)}, 2015, pp. 358--368.
+\bibitem{tsay2014influence} J. Tsay, L. Dabbish, and J. Herbsleb, ``Influence of social and technical factors for evaluating contribution in GitHub,'' in \textit{Proc. 36th Int. Conf. Software Engineering (ICSE)}, 2014, pp. 356--366.
+\bibitem{zhang2022pull} X. Zhang, Y. Yu, G. Gousios, and A. Rastogi, ``Pull request decisions explained: An empirical overview,'' \textit{IEEE Trans. Software Engineering}, vol. 49, no. 2, pp. 849--871, 2023.
+\bibitem{li2025rise} H. Li, H. Zhang, and A. E. Hassan, ``The rise of AI teammates in software engineering (SE) 3.0: How autonomous coding agents are reshaping software engineering,'' arXiv:2507.15003, 2025.
+\bibitem{li2026aidev} H. Li, H. Zhang, and A. E. Hassan, ``AIDev: Studying AI coding agents on GitHub,'' arXiv:2602.09185, 2026.
+\bibitem{watanabe2025agentic} M. Watanabe, H. Li, Y. Kashiwa, B. Reid, H. Iida, and A. E. Hassan, ``On the use of agentic coding: An empirical study of pull requests on GitHub,'' arXiv:2509.14745, 2025.
+\bibitem{chapman2000crisp} P. Chapman \textit{et al.}, ``CRISP-DM 1.0: Step-by-step data mining guide,'' SPSS Inc., 2000.
+\bibitem{han2011data} J. Han, M. Kamber, and J. Pei, \textit{Data Mining: Concepts and Techniques}, 3rd ed. Morgan Kaufmann, 2011.
+\bibitem{saito2015precision} T. Saito and M. Rehmsmeier, ``The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets,'' \textit{PLoS ONE}, vol. 10, no. 3, e0118432, 2015.
+\bibitem{kaufman2012leakage} S. Kaufman, S. Rosset, C. Perlich, and O. Stitelman, ``Leakage in data mining: Formulation, detection, and avoidance,'' \textit{ACM Trans. Knowledge Discovery from Data}, vol. 6, no. 4, pp. 1--21, 2012.
+\bibitem{pedregosa2011scikit} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Machine Learning Research}, vol. 12, pp. 2825--2830, 2011.
+\end{thebibliography}
+\end{document}
